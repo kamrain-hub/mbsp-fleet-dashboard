@@ -1,0 +1,9 @@
+# Repo awam (GitHub Pages): hanya fail aplikasi web. Semua fail lain kekal di komputer sahaja.
+/*
+!/.gitignore
+!/.nojekyll
+!/README.md
+!/index.html
+!/app.js
+!/chat.js
+!/seed.js

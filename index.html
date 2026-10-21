@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MBSP Fleet Command Center</title>
+<script src="https://cdn.tailwindcss.com/3.4.5"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap">
+<style>
+  body { background: #f1f5f9; }
+  .tab-btn.active { background: #0f172a; color: #fff; }
+  .cell { width: 100%; border: 1px solid transparent; background: transparent; padding: 2px 4px; font-size: 12px; border-radius: 4px; }
+  .cell:hover { border-color: #cbd5e1; }
+  .cell:focus { border-color: #2563eb; background: #fff; outline: none; }
+  textarea.cell { resize: vertical; min-height: 34px; }
+  .grid-table th { position: sticky; top: 0; background: #1e293b; color: #fff; font-size: 11px; font-weight: 600; padding: 6px 4px; text-align: left; z-index: 1; }
+  .grid-table td { border-bottom: 1px solid #e2e8f0; padding: 2px; vertical-align: top; font-size: 12px; }
+  .rpt { font-family: Arial, sans-serif; font-size: 10px; border-collapse: collapse; width: 100%; }
+  .rpt th, .rpt td { border: 1px solid #000; padding: 2px 4px; vertical-align: middle; }
+  .rpt th { background: #d9d9d9; font-weight: bold; text-align: center; }
+  @keyframes blink { 50% { opacity: .55; } }
+  .blink { animation: blink 1.4s ease-in-out infinite; }
+
+  /* ===== Tema HUD (gaya filem superhero: merah-emas + hologram biru) ===== */
+  body.hud { --red: #b91c1c; --gold: #f5b301; --holo: #38bdf8; --ink: #e2e8f0; --dim: #94a3b8; --panel: rgba(9, 14, 26, .88);
+    background: radial-gradient(ellipse at 50% -10%, #3b0d0d 0%, #0b0f1a 45%, #05070d 100%) fixed; color: var(--ink); font-family: 'Rajdhani', system-ui, sans-serif; font-size: 15px; }
+  body.hud::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: linear-gradient(rgba(56,189,248,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(56,189,248,.045) 1px, transparent 1px); background-size: 42px 42px; }
+  body.hud header, body.hud main, body.hud #alertBar { position: relative; z-index: 1; }
+  body.hud header { background: linear-gradient(90deg, #450a0a, #991b1b 35%, #7c2d12 70%, #450a0a) !important; border-bottom: 2px solid var(--gold); box-shadow: 0 0 28px rgba(245,179,1,.25); }
+  body.hud .brand-title { font-family: 'Orbitron', sans-serif; letter-spacing: .08em; text-transform: uppercase; background: linear-gradient(90deg, #fde68a, #f5b301, #fde68a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  body.hud .brand-logo { background: radial-gradient(circle, #e0f2fe 0 18%, #38bdf8 30%, #0c4a6e 62%, #0b0f1a 64%) !important; box-shadow: 0 0 14px #38bdf8; color: transparent !important; border-radius: 9999px !important; }
+  body.hud .tab-btn { font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  body.hud .tab-btn.active { background: var(--gold); color: #1a0a00; box-shadow: 0 0 12px rgba(245,179,1,.6); }
+  body.hud h1 { font-family: 'Orbitron', sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--gold); text-shadow: 0 0 12px rgba(245,179,1,.35); }
+  body.hud .bg-white:not(#printArea) { background: var(--panel) !important; color: var(--ink); border: 1px solid rgba(56,189,248,.22); box-shadow: inset 0 0 30px rgba(56,189,248,.05), 0 0 0 1px rgba(245,179,1,.05) !important; backdrop-filter: blur(4px); }
+  body.hud .rounded-lg.bg-white { position: relative; clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px)); border-radius: 0 !important; }
+  body.hud .rounded-lg.bg-white > .font-semibold:first-child, body.hud .rounded-lg.bg-white .font-semibold { color: #7dd3fc; letter-spacing: .03em; }
+  body.hud button.bg-white, body.hud label.bg-white { background: rgba(56,189,248,.08) !important; color: #bae6fd; border-color: rgba(56,189,248,.4) !important; }
+  body.hud button.bg-white:hover, body.hud label.bg-white:hover { background: rgba(56,189,248,.18) !important; }
+  body.hud .bg-blue-600 { background: linear-gradient(90deg, #b45309, #f5b301) !important; color: #1a0a00 !important; box-shadow: 0 0 12px rgba(245,179,1,.4); }
+  body.hud .bg-slate-900:not(header) { background: #b91c1c !important; }
+  body.hud .bg-slate-100 { background: rgba(56,189,248,.08) !important; color: #7dd3fc; text-transform: uppercase; letter-spacing: .04em; }
+  body.hud .bg-slate-50 { background: rgba(255,255,255,.03) !important; }
+  body.hud .bg-slate-200 { background: rgba(148,163,184,.2) !important; color: var(--ink); }
+  body.hud .bg-emerald-50 { background: rgba(16,185,129,.08) !important; }
+  body.hud .bg-red-50 { background: rgba(239,68,68,.1) !important; }
+  body.hud .bg-amber-50 { background: rgba(245,158,11,.1) !important; }
+  body.hud .bg-emerald-100 { background: rgba(16,185,129,.22) !important; color: #6ee7b7 !important; }
+  body.hud .bg-amber-100 { background: rgba(245,158,11,.22) !important; color: #fcd34d !important; }
+  body.hud .bg-red-100 { background: rgba(239,68,68,.25) !important; color: #fca5a5 !important; }
+  body.hud .text-slate-800, body.hud .text-slate-700 { color: var(--ink) !important; }
+  body.hud .text-slate-600, body.hud .text-slate-500, body.hud .text-slate-400 { color: var(--dim) !important; }
+  body.hud .text-red-700, body.hud .text-red-800, body.hud .text-red-600 { color: #f87171 !important; }
+  body.hud .text-emerald-700, body.hud .text-emerald-800 { color: #34d399 !important; }
+  body.hud .text-amber-700, body.hud .text-amber-800, body.hud .text-amber-900 { color: #fbbf24 !important; }
+  body.hud .text-blue-700 { color: #7dd3fc !important; }
+  body.hud .border-b, body.hud .border { border-color: rgba(148,163,184,.14) !important; }
+  body.hud .text-3xl { font-family: 'Orbitron', sans-serif; text-shadow: 0 0 14px currentColor; }
+  body.hud input, body.hud select, body.hud textarea { background: rgba(2,6,23,.65); color: var(--ink); border-color: rgba(56,189,248,.3) !important; color-scheme: dark; }
+  body.hud .cell { background: transparent; }
+  body.hud .cell:hover { border-color: rgba(56,189,248,.35); }
+  body.hud .cell:focus { background: rgba(2,6,23,.9); border-color: var(--gold); }
+  body.hud .grid-table th { background: #0b1220; color: var(--gold); font-family: 'Orbitron', sans-serif; font-size: 9.5px; letter-spacing: .05em; border-bottom: 1px solid rgba(245,179,1,.4); }
+  body.hud .grid-table td { border-bottom-color: rgba(148,163,184,.12); }
+  body.hud #alertBar > div { background: linear-gradient(90deg, rgba(127,29,29,.95), rgba(185,28,28,.85)) !important; border-bottom: 1px solid #fca5a5; box-shadow: 0 0 22px rgba(239,68,68,.45); }
+  body.hud #alertBar span.blink.bg-white { background: #fde68a !important; color: #7f1d1d !important; border: 0; font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: .1em; padding: 2px 8px; box-shadow: 0 0 10px #fde68a; }
+  body.hud .leaflet-container { background: #0b1220; }
+  body.hud .leaflet-tooltip { background: rgba(2,6,23,.85); color: #fde68a; border: 1px solid rgba(245,179,1,.5); font-family: 'Orbitron', sans-serif; font-size: 9px; }
+  body.hud .leaflet-popup-content-wrapper, body.hud .leaflet-popup-tip { background: #0b1220; color: var(--ink); border: 1px solid rgba(56,189,248,.4); }
+  body.hud #busy > div { background: #0b1220 !important; color: var(--gold); border: 1px solid var(--gold); font-family: 'Orbitron', sans-serif; }
+  body.hud #printArea { color: #000; }
+
+  main .grid > * { min-width: 0; } /* elak peta/carta melebarkan halaman di telefon */
+
+  /* ===== Log masuk & peranan ===== */
+  body.logged-out > header, body.logged-out > main, body.logged-out #alertBar, body.logged-out #arcFab, body.logged-out #arcPanel { display: none !important; }
+  body:not(.role-admin) #arcFab, body:not(.role-admin) #arcPanel { display: none !important; }
+  #loginView { display: none; min-height: 100vh; }
+  body.logged-out #loginView { display: grid; grid-template-columns: 1.1fr 1fr; }
+  .login-side { background: linear-gradient(160deg, #0077b8, #009edb 55%, #36b6e8); color: #fff; padding: 56px; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; }
+  .login-side::after { content: ''; position: absolute; right: -120px; bottom: -120px; width: 420px; height: 420px; border-radius: 50%; border: 60px solid rgba(255,255,255,.08); }
+  .login-side h2 { font-size: 34px; font-weight: 700; line-height: 1.15; margin: 18px 0 12px; }
+  .login-side p { opacity: .92; max-width: 460px; font-size: 16px; line-height: 1.5; }
+  .login-roles { display: grid; gap: 12px; margin-top: 28px; max-width: 460px; position: relative; z-index: 1; }
+  .login-roles div { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 10px; padding: 12px 14px; font-size: 14px; }
+  .login-roles b { display: block; font-size: 15px; margin-bottom: 2px; }
+  .login-main { display: grid; place-items: center; padding: 32px 20px; background: #f3f6f9; }
+  .login-card { width: 100%; max-width: 400px; background: #fff; border: 1px solid #e3e8ef; border-radius: 14px; padding: 32px; box-shadow: 0 10px 30px rgba(16,24,40,.08); }
+  .login-card h1 { font-size: 22px; font-weight: 700; color: #1d3557; }
+  .login-card label { display: block; font-size: 13px; font-weight: 500; color: #1d3557; margin: 16px 0 6px; }
+  .login-card input { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 11px 12px; font-size: 15px; background: #fff; color: #2b3440; }
+  .login-card input:focus { outline: none; border-color: #009edb; box-shadow: 0 0 0 3px rgba(0,158,219,.18); }
+  .login-card .btn-primary { width: 100%; margin-top: 22px; background: #009edb; color: #fff; border: 0; border-radius: 8px; padding: 12px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .login-card .btn-primary:hover { background: #0077b8; }
+  .login-card .btn-primary:disabled { opacity: .6; cursor: wait; }
+  .login-err { margin-top: 14px; background: #fdecee; color: #8a1c2b; border: 1px solid #f5c2c7; border-radius: 8px; padding: 10px 12px; font-size: 14px; display: none; }
+  .login-note { margin-top: 18px; font-size: 12px; color: #5f6b7a; line-height: 1.5; }
+  .pw-wrap { position: relative; }
+  .pw-wrap button { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: 0; color: #0077b8; font-size: 13px; cursor: pointer; }
+  @media (max-width: 860px) { body.logged-out #loginView { grid-template-columns: 1fr; } .login-side { padding: 28px 22px; } .login-side h2 { font-size: 24px; } .login-roles { display: none; } }
+  #userBox { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 13px; }
+  #userBox .who { text-align: right; line-height: 1.2; }
+  #userBox .role { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: #e6f5fc; color: #0077b8; }
+  body.hud #userBox .role { background: rgba(245,179,1,.2); color: #fde68a; }
+  #userBox button { font-size: 12px; padding: 5px 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
+  body.hud #userBox button { border-color: rgba(255,255,255,.3); }
+  .modal-bg { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: none; place-items: center; z-index: 3000; padding: 16px; }
+  .modal-bg.open { display: grid; }
+  .modal-bg .login-card { max-width: 420px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+  .tl { position: relative; padding-left: 22px; }
+  .tl::before { content: ''; position: absolute; left: 7px; top: 4px; bottom: 4px; width: 2px; background: #e3e8ef; }
+  .tl-item { position: relative; padding: 0 0 14px; }
+  .tl-item::before { content: ''; position: absolute; left: -19px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--dot, #009edb); box-shadow: 0 0 0 3px #fff; }
+  body.hud .tl::before { background: rgba(148,163,184,.25); }
+  body.hud .tl-item::before { box-shadow: 0 0 0 3px #0b1220; }
+  @media (max-width: 640px) { body.un .tab-btn { padding: 10px 12px !important; font-size: 13px; } .page-head h1 { font-size: 19px; } }
+
+  /* ===== Panduan halaman & langkah (semua tema) ===== */
+  .page-head h1 { font-size: 22px; font-weight: 700; }
+  .page-head p { font-size: 14px; color: #64748b; margin-top: 2px; max-width: 900px; }
+  .steps { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 0; }
+  .steps li { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 999px; background: #eef6fb; color: #1d3557; font-size: 13px; }
+  .steps li b { width: 24px; height: 24px; border-radius: 50%; background: #009edb; color: #fff; display: grid; place-items: center; font-size: 12px; flex: none; }
+  .tab-btn svg { width: 16px; height: 16px; display: inline-block; vertical-align: -3px; margin-right: 6px; }
+  body.hud .steps li { background: rgba(56,189,248,.08); color: #bae6fd; border: 1px solid rgba(56,189,248,.25); }
+  body.hud .steps li b { background: var(--gold); color: #1a0a00; }
+  body.hud .page-head p { color: var(--dim); }
+
+  /* ===== Tema Cerah (lalai) — bersih, gaya portal antarabangsa ===== */
+  body.un { --blue: #009edb; --blue-d: #0077b8; --navy: #1d3557; --ink: #2b3440; --muted: #5f6b7a; --line: #e3e8ef; --bg: #f3f6f9;
+    background: var(--bg); color: var(--ink); font-family: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 15px; }
+  body.un header { background: #fff !important; color: var(--navy) !important; box-shadow: 0 1px 0 var(--line); }
+  body.un header > div { padding-bottom: 0; row-gap: 10px; }
+  body.un .brand-logo { background: var(--blue) !important; color: #fff !important; border-radius: 8px !important; }
+  body.un .brand-title { color: var(--navy); font-size: 18px; }
+  body.un header .text-slate-400 { color: var(--muted) !important; }
+  body.un #btnRefresh, body.un #btnTheme { border-color: #cbd5e1 !important; color: var(--navy); padding: 5px 10px; }
+  body.un #btnRefresh:hover, body.un #btnTheme:hover { background: #eef6fb !important; }
+  body.un #connBadge .text-amber-300 { color: #b45309 !important; }
+  body.un #connBadge .text-emerald-300 { color: #15803d !important; }
+  body.un #connBadge .text-red-300 { color: #b91c1c !important; }
+  body.un #tabs { width: 100%; margin-left: 0 !important; gap: 0; background: var(--blue); box-shadow: 0 0 0 100vmax var(--blue); clip-path: inset(0 -100vmax); }
+  body.un .tab-btn { color: #fff; border-radius: 0 !important; padding: 12px 16px !important; font-weight: 500; font-size: 14px; }
+  body.un .tab-btn:hover { background: rgba(255,255,255,.14) !important; }
+  body.un .tab-btn.active { background: var(--blue-d); box-shadow: inset 0 -4px 0 #fff; color: #fff; }
+  body.un #alertBar > div { background: #fdecee !important; color: #7a1323 !important; border-bottom: 1px solid #f5c2c7; }
+  body.un #alertBar .blink { animation: none; background: #e5243b !important; color: #fff !important; padding: 2px 10px; border-radius: 4px; font-size: 12px; letter-spacing: .04em; }
+  body.un #alertBar .opacity-80 { color: #7a1323; }
+  body.un main { padding-top: 22px; }
+  body.un h1 { color: var(--navy); }
+  body.un .bg-white:not(#printArea) { border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(16,24,40,.05) !important; }
+  body.un .rounded-lg { border-radius: 10px !important; }
+  body.un .p-3 { padding: 16px !important; }
+  body.un .bg-white > .font-semibold, body.un .bg-white .font-semibold.mb-2, body.un .bg-white .font-semibold.mb-1 { color: var(--navy); font-size: 16px; font-weight: 600; }
+  body.un .text-3xl { color: var(--navy); font-weight: 700; }
+  body.un .border-l-4 { border-left-width: 5px !important; }
+  body.un .border-emerald-500 { border-left-color: #4c9f38 !important; }
+  body.un .border-blue-500 { border-left-color: var(--blue) !important; }
+  body.un .border-red-500, body.un .border-red-700 { border-left-color: #e5243b !important; }
+  body.un .border-amber-500 { border-left-color: #fcc30b !important; }
+  body.un .bg-blue-600 { background: var(--blue) !important; }
+  body.un .bg-blue-600:hover { background: var(--blue-d) !important; }
+  body.un .bg-slate-900:not(header) { background: var(--navy) !important; }
+  body.un .bg-emerald-600 { background: #3f8a2e !important; }
+  body.un button.bg-white, body.un label.bg-white { border-color: #cbd5e1 !important; color: var(--navy); }
+  body.un button.bg-white:hover, body.un label.bg-white:hover { background: #eef6fb !important; border-color: var(--blue) !important; }
+  body.un button, body.un label.cursor-pointer { border-radius: 6px; }
+  body.un .bg-slate-100 { background: #eef3f8 !important; color: var(--navy); }
+  body.un .grid-table th { background: #eef3f8; color: var(--navy); border-bottom: 2px solid var(--blue); font-size: 11px; }
+  body.un .grid-table td { border-bottom-color: #edf1f5; font-size: 13px; }
+  body.un .grid-table tbody tr:hover { background: #f7fbfe; }
+  body.un .cell { font-size: 13px; }
+  body.un .cell:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,158,219,.15); }
+  body.un input:not(.cell), body.un select, body.un textarea:not(.cell) { border-color: #cbd5e1; border-radius: 6px; }
+  body.un input:not(.cell):focus, body.un select:focus, body.un textarea:not(.cell):focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,158,219,.15); }
+  body.un .leaflet-tooltip { font-family: 'Roboto', sans-serif; font-size: 11px; font-weight: 500; color: var(--navy); border-color: #cbd5e1; }
+
+  @media print {
+    body, body.hud, body.un { background: #fff !important; }
+    body.hud::before { display: none; }
+    .no-print { display: none !important; }
+    #view-ringkasan { display: block !important; }
+    .print-area { box-shadow: none !important; padding: 0 !important; }
+    @page { size: A4 landscape; margin: 10mm; }
+  }
+</style>
+</head>
+<body class="text-slate-800 logged-out">
+<script>(function () { let t = 'un'; try { if (localStorage.getItem('fleet.theme') === 'hud') t = 'hud'; } catch (e) { /* storan disekat */ } document.body.classList.add(t); })();</script>
+
+<!-- LOG MASUK -->
+<div id="loginView">
+  <div class="login-side">
+    <div class="flex items-center gap-3">
+      <div class="w-11 h-11 rounded-lg bg-white text-[#0077b8] font-black grid place-items-center text-lg">M</div>
+      <div><div class="font-bold">Majlis Bandaraya Seberang Perai</div><div class="text-sm opacity-90">Jabatan Kejuruteraan · Pengurusan Fleet</div></div>
+    </div>
+    <div style="position:relative;z-index:1">
+      <h2>MBSP Fleet<br>Command Center</h2>
+      <p>Sistem pemantauan pembaikan kenderaan, ketersediaan unit standby dan prestasi bengkel panel MBSP.</p>
+      <div class="login-roles">
+        <div><b>Pentadbir</b>Akses penuh: dashboard, laporan harian, analisis, pengguna dan tetapan.</div>
+        <div><b>Panel Bengkel</b>Daftar kenderaan yang dibaiki dan kemaskini status pembaikan.</div>
+        <div><b>PIC Depoh</b>Lihat status depoh dan pergerakan kenderaan depoh anda.</div>
+      </div>
+    </div>
+    <div class="text-xs opacity-80" style="position:relative;z-index:1">Untuk kegunaan pegawai dan panel yang diberi kuasa sahaja. Semua aktiviti direkodkan.</div>
+  </div>
+  <div class="login-main">
+    <form class="login-card" id="loginForm" autocomplete="on">
+      <h1>Log Masuk</h1>
+      <p class="text-sm text-slate-500 mt-1">Masukkan nama pengguna dan kata laluan yang diberikan oleh pentadbir.</p>
+      <label for="loginUser">Nama pengguna</label>
+      <input id="loginUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      <label for="loginPass">Kata laluan</label>
+      <div class="pw-wrap"><input id="loginPass" name="password" type="password" autocomplete="current-password" required><button type="button" data-showpw="loginPass">Tunjuk</button></div>
+      <button class="btn-primary" id="loginBtn" type="submit">Log Masuk</button>
+      <div class="login-err" id="loginErr"></div>
+      <div class="login-note" id="loginNote">Lupa kata laluan? Hubungi pentadbir sistem Jabatan Kejuruteraan untuk tetapkan semula.</div>
+    </form>
+  </div>
+</div>
+
+<header class="no-print bg-slate-900 text-white">
+  <div class="max-w-[1500px] mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+    <div class="flex flex-1 flex-wrap items-center gap-3">
+      <div class="brand-logo w-9 h-9 rounded bg-amber-400 text-slate-900 font-black grid place-items-center">M</div>
+      <div>
+        <div class="brand-title font-bold leading-tight">MBSP Fleet Command Center</div>
+        <div class="text-xs text-slate-400">Jabatan Kejuruteraan · Pengurusan Fleet</div>
+      </div>
+      <div class="text-xs ml-2" id="connBadge"></div>
+      <button id="btnRefresh" class="text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700" title="Ambil data terkini dari pangkalan data">⟳ Muat semula</button>
+      <button id="btnTheme" class="text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700" title="Tukar tema paparan">◐ Tema</button>
+      <div id="userBox">
+        <div class="who"><div id="userName" class="font-semibold"></div><span id="userRole" class="role"></span></div>
+        <button id="btnChangePw" title="Tukar kata laluan">Kata laluan</button>
+        <button id="btnLogout" title="Log keluar">Log keluar</button>
+      </div>
+    </div>
+    <nav class="flex flex-wrap gap-1 ml-auto text-sm" id="tabs">
+      <button class="tab-btn px-3 py-1.5 rounded hover:bg-slate-700" data-tab="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Dashboard</button>
+      <button class="tab-btn px-3 py-1.5 rounded hover:bg-slate-700" data-tab="harian"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg>Isi Laporan Harian</button>
+      <button class="tab-btn px-3 py-1.5 rounded hover:bg-slate-700" data-tab="ringkasan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>Ringkasan &amp; Cetak</button>
+      <button class="tab-btn px-3 py-1.5 rounded hover:bg-slate-700" data-tab="analisis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Analisis &amp; Penalti</button>
+      <button class="tab-btn px-3 py-1.5 rounded hover:bg-slate-700" data-tab="data"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Sejarah &amp; Data</button>
+      <button class="tab-btn px-3 py-1.5 rounded hover:bg-slate-700" data-tab="tetapan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Tetapan</button>
+      <button class="tab-btn px-3 py-1.5 rounded hover:bg-slate-700" data-tab="pengguna"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11a3 3 0 1 0 0-6M22 21c0-3-2-5-5-5.5"/></svg>Pengguna</button>
+      <button class="tab-btn px-3 py-1.5 rounded hover:bg-slate-700" data-tab="panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>Kenderaan Di Bengkel Saya</button>
+      <button class="tab-btn px-3 py-1.5 rounded hover:bg-slate-700" data-tab="depo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12M9 21v-6h6v6"/></svg>Depoh Saya</button>
+    </nav>
+  </div>
+</header>
+
+<div id="alertBar" class="no-print"></div>
+
+<main class="max-w-[1500px] mx-auto px-4 py-4">
+
+  <!-- DASHBOARD -->
+  <section id="view-dashboard" class="view hidden space-y-4">
+    <div class="page-head">
+      <h1>Pusat Arahan Eksekutif</h1>
+      <p>Gambaran keseluruhan armada dari laporan harian terkini. <span id="dashDate"></span></p>
+    </div>
+    <div id="kpiCards" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3"></div>
+    <div class="grid lg:grid-cols-5 gap-4">
+      <div class="lg:col-span-3 bg-white rounded-lg shadow p-3">
+        <div class="font-semibold mb-2">Peta Depoh MBSP <span class="text-xs font-normal text-slate-500">· Merah = 0 standby · Hijau = normal · Biru = lebihan standby</span></div>
+        <div id="map" class="h-[420px] rounded"></div>
+      </div>
+      <div class="lg:col-span-2 bg-white rounded-lg shadow p-3">
+        <div class="font-semibold mb-2">Kompaktor: Rosak vs Standby vs Beroperasi (ikut depoh)</div>
+        <div class="h-[420px]"><canvas id="chDepot"></canvas></div>
+      </div>
+    </div>
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="bg-white rounded-lg shadow p-3"><div class="font-semibold mb-2">Beban Kerja Bengkel Panel (semua kenderaan dalam pembaikan)</div><div class="h-72"><canvas id="chPanel"></canvas></div></div>
+      <div class="bg-white rounded-lg shadow p-3"><div class="font-semibold mb-2">Tempoh Pembaikan (Jab. Perbandaran)</div><div class="h-72"><canvas id="chTempoh"></canvas></div></div>
+      <div class="bg-white rounded-lg shadow p-3"><div class="font-semibold mb-2">Trend Harian (semua laporan tersimpan)</div><div class="h-72"><canvas id="chTrend"></canvas></div></div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-3">
+      <div class="font-semibold mb-1">Cadangan Mobiliti Silang (Inter-Depot Transfer)</div>
+      <div class="text-xs text-slate-500 mb-2">Dijana automatik. Kelulusan oleh Pengurus Fleet / Jurutera MBSP (BRS-013).</div>
+      <div id="transferList"></div>
+    </div>
+  </section>
+
+  <!-- LAPORAN HARIAN -->
+  <section id="view-harian" class="view hidden space-y-3">
+    <div class="page-head">
+      <h1>Isi Laporan Harian</h1>
+      <p>Kemaskini status pembaikan kenderaan setiap hari. Semua laporan disimpan dan dikumpul untuk analisis.</p>
+    </div>
+    <ol class="steps">
+      <li><b>1</b>Pilih tarikh &amp; isi nama anda</li>
+      <li><b>2</b>Tekan "Bawa dari [tarikh lepas]"</li>
+      <li><b>3</b>Isi Tarikh Siap, tambah kes baru &amp; kemaskini standby</li>
+      <li><b>4</b>Tekan Simpan Laporan</li>
+    </ol>
+    <div class="bg-white rounded-lg shadow p-3 flex flex-wrap items-end gap-3">
+      <div>
+        <label class="block text-xs text-slate-500">Tarikh Laporan</label>
+        <input type="date" id="rptDate" class="border rounded px-2 py-1">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500">Nama Pengisi</label>
+        <input type="text" id="rptUser" placeholder="cth: Ahmad (PJ Fleet)" class="border rounded px-2 py-1 w-56">
+      </div>
+      <div id="rptStatus" class="text-sm"></div>
+      <div class="ml-auto flex flex-wrap gap-2">
+        <label class="px-3 py-1.5 rounded border bg-white hover:bg-slate-50 text-sm cursor-pointer">Import Excel ke borang
+          <input type="file" id="importXlsx" accept=".xlsx,.xls,.csv" class="hidden"></label>
+        <button id="btnTemplate" class="px-3 py-1.5 rounded border bg-white hover:bg-slate-50 text-sm">Muat Turun Templat Excel</button>
+        <button id="btnSave" class="px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold">Simpan Laporan</button>
+      </div>
+    </div>
+    <div id="rptMsgs"></div>
+    <div id="rptBody"></div>
+  </section>
+
+  <!-- RINGKASAN -->
+  <section id="view-ringkasan" class="view hidden">
+    <div class="page-head no-print mb-3">
+      <h1>Ringkasan &amp; Cetak</h1>
+      <p>Laporan dalam format rasmi Laporan Pembaikan Kenderaan Majlis. Pilih tarikh, kemudian cetak atau simpan sebagai PDF.</p>
+    </div>
+    <div class="no-print flex flex-wrap items-center gap-2 mb-3">
+      <label class="text-sm">Tarikh:</label>
+      <select id="sumDate" class="border rounded px-2 py-1"></select>
+      <button id="btnPrint" class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm">Cetak / Simpan PDF</button>
+      <button id="btnExportDay" class="px-3 py-1.5 rounded border bg-white text-sm">Eksport Excel (hari ini)</button>
+    </div>
+    <div id="printArea" class="print-area bg-white shadow rounded p-4"></div>
+  </section>
+
+  <!-- ANALISIS -->
+  <section id="view-analisis" class="view hidden space-y-4">
+    <div class="page-head">
+      <h1>Analisis &amp; Penalti</h1>
+      <p>Kes lewat di bengkel panel, prestasi pembaikan dan kerosakan yang berulang, sebagai input keputusan pengurusan.</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-3">
+      <div class="font-semibold">Kes Kelewatan Kritikal &amp; Penilaian Penalti Bengkel Luar (LAD)</div>
+      <div class="text-xs text-slate-500 mb-2">Bengkel panel luar sahaja, kenderaan di bengkel melebihi ambang kritikal. Keputusan penalti: Pengarah Kejuruteraan / Jabatan Kewangan (BRS-013, BRS-025).</div>
+      <div id="penaltyTable" class="overflow-x-auto"></div>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div class="bg-white rounded-lg shadow p-3">
+        <div class="font-semibold">Prestasi: 3 Hari Pertama vs Hari Seterusnya</div>
+        <div class="text-xs text-slate-500 mb-2">Kes yang selesai dalam 3 hari berbanding yang melarat (BRS-018.3), ikut panel.</div>
+        <div id="perfTable" class="overflow-x-auto"></div>
+      </div>
+      <div class="bg-white rounded-lg shadow p-3">
+        <div class="font-semibold">Kerosakan Kronik / Berulang</div>
+        <div class="text-xs text-slate-500 mb-2">Kata kunci kerosakan paling kerap & kenderaan yang masuk bengkel berulang kali (dari semua sejarah).</div>
+        <div id="chronicTable" class="overflow-x-auto"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA -->
+  <section id="view-data" class="view hidden space-y-4">
+    <div class="page-head">
+      <h1>Sejarah &amp; Data</h1>
+      <p>Semua laporan yang telah disimpan, eksport data penuh ke Excel, backup, dan log audit.</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-3">
+      <div class="font-semibold mb-2">Data Raya (semua laporan harian)</div>
+      <div class="flex flex-wrap gap-2 mb-3">
+        <button id="btnExportAll" class="px-3 py-1.5 rounded bg-emerald-600 text-white text-sm">Eksport Semua Data (.xlsx)</button>
+        <button id="btnBackup" class="px-3 py-1.5 rounded border bg-white text-sm">Backup Penuh (.json)</button>
+        <label class="px-3 py-1.5 rounded border bg-white text-sm cursor-pointer">Pulihkan Backup (.json)
+          <input type="file" id="restoreJson" accept=".json" class="hidden"></label>
+      </div>
+      <div class="text-xs text-slate-600 bg-slate-50 border rounded p-2 mb-3">
+        Laporan 180 hari terkini dimuatkan ke skrin. Data penuh (semua tarikh) ada dalam Google Sheets — helaian DATA_HARIAN, STANDBY_HARIAN dan AUDIT boleh terus dianalisis dengan pivot table.
+      </div>
+      <div id="historyTable" class="overflow-x-auto"></div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-3">
+      <div class="font-semibold mb-2">Log Audit</div>
+      <div id="auditTable" class="overflow-x-auto max-h-[420px] overflow-y-auto"></div>
+    </div>
+  </section>
+
+  <!-- TETAPAN -->
+  <section id="view-tetapan" class="view hidden space-y-4">
+    <div class="page-head">
+      <h1>Tetapan</h1>
+      <p>Senarai depoh, panel, ambang amaran dan sambungan pangkalan data. Perubahan di sini terpakai kepada semua pengguna.</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-3">
+      <div class="font-semibold mb-2">Sambungan Pangkalan Data (Google Sheets)</div>
+      <div id="connSettings"></div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-3">
+      <div class="font-semibold mb-2">Depoh (Jabatan Perbandaran)</div>
+      <div class="text-xs text-slate-500 mb-2">Jumlah kompaktor setiap depoh dan koordinat peta. Koordinat asal adalah anggaran — sila betulkan.</div>
+      <div id="depotSettings" class="overflow-x-auto"></div>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div class="bg-white rounded-lg shadow p-3">
+        <div class="font-semibold mb-2">Ambang &amp; Peraturan</div>
+        <div id="ruleSettings" class="grid grid-cols-2 gap-2 text-sm"></div>
+      </div>
+      <div class="bg-white rounded-lg shadow p-3">
+        <div class="font-semibold mb-2">Senarai Pilihan</div>
+        <div id="listSettings" class="space-y-2 text-sm"></div>
+      </div>
+    </div>
+    <button id="btnSaveSettings" class="px-4 py-1.5 rounded bg-blue-600 text-white text-sm font-semibold">Simpan Tetapan</button>
+  </section>
+
+  <!-- PENGGUNA (admin) -->
+  <section id="view-pengguna" class="view hidden space-y-4">
+    <div class="page-head flex flex-wrap items-end gap-3">
+      <div><h1>Pengurusan Pengguna</h1>
+        <p>Cipta akaun untuk pentadbir, panel bengkel dan PIC depoh. Kata laluan sementara dipaparkan sekali sahaja. Serahkan kepada pengguna secara selamat.</p></div>
+      <button id="btnNewUser" class="ml-auto px-4 py-2 rounded bg-blue-600 text-white text-sm font-semibold">+ Pengguna Baru</button>
+    </div>
+    <div class="bg-white rounded-lg shadow p-3"><div id="usersTable" class="overflow-x-auto"></div></div>
+  </section>
+
+  <!-- PORTAL PANEL -->
+  <section id="view-panel" class="view hidden space-y-4">
+    <div class="page-head">
+      <h1>Kenderaan di Bengkel <span id="panelName"></span></h1>
+      <p>Senarai kenderaan MBSP yang sedang dibaiki oleh bengkel anda. Kemaskini tarikh jangkaan dan tarikh siap, atau daftar kenderaan baru yang diterima.</p>
+    </div>
+    <ol class="steps">
+      <li><b>1</b>Daftar kenderaan baru yang diterima</li>
+      <li><b>2</b>Kemaskini tarikh jangkaan siap jika berubah</li>
+      <li><b>3</b>Isi tarikh siap bila kenderaan selesai</li>
+      <li><b>4</b>Tekan Hantar Kemaskini</li>
+    </ol>
+    <div id="panelMsgs"></div>
+    <div id="panelKpi" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+    <div class="bg-white rounded-lg shadow p-3">
+      <div class="flex flex-wrap items-center gap-2 mb-2">
+        <div class="font-semibold">Kenderaan dalam pembaikan</div>
+        <span class="text-sm text-slate-500" id="panelDate"></span>
+        <button id="btnPanelSave" class="ml-auto px-4 py-2 rounded bg-blue-600 text-white text-sm font-semibold">Hantar Kemaskini</button>
+      </div>
+      <div id="panelRows" class="overflow-x-auto"></div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-3">
+      <div class="font-semibold mb-1">Daftar kenderaan baru diterima</div>
+      <div class="text-sm text-slate-500 mb-3">Kenderaan akan disenaraikan di bawah bengkel anda selepas tekan Hantar Kemaskini.</div>
+      <form id="panelNewForm" class="grid md:grid-cols-6 gap-3 text-sm" autocomplete="off">
+        <div><label class="block text-xs text-slate-500 mb-1">No plat *</label><input name="plat" required class="border rounded px-2 py-1.5 w-full uppercase"></div>
+        <div><label class="block text-xs text-slate-500 mb-1">Jenis kenderaan *</label><input name="jenis" list="dlJenis" required class="border rounded px-2 py-1.5 w-full"></div>
+        <div><label class="block text-xs text-slate-500 mb-1">Jabatan / depoh *</label><input name="depo" list="dlDepo" required class="border rounded px-2 py-1.5 w-full"></div>
+        <div><label class="block text-xs text-slate-500 mb-1">Tarikh masuk *</label><input name="masuk" type="date" required class="border rounded px-2 py-1.5 w-full"></div>
+        <div><label class="block text-xs text-slate-500 mb-1">Jangkaan siap</label><input name="jangkaan" type="date" class="border rounded px-2 py-1.5 w-full"></div>
+        <div class="flex items-end"><button class="px-3 py-1.5 rounded border bg-white text-sm w-full" type="submit">+ Tambah ke senarai</button></div>
+        <div class="md:col-span-6"><label class="block text-xs text-slate-500 mb-1">Keterangan kerosakan *</label><textarea name="kerosakan" required rows="2" class="border rounded px-2 py-1.5 w-full"></textarea></div>
+      </form>
+    </div>
+    <div class="bg-white rounded-lg shadow p-3">
+      <div class="font-semibold mb-2">Siap dalam 30 hari lepas</div>
+      <div id="panelDone" class="overflow-x-auto"></div>
+    </div>
+  </section>
+
+  <!-- PORTAL DEPOH -->
+  <section id="view-depo" class="view hidden space-y-4">
+    <div class="page-head">
+      <h1>Depoh <span id="depoName"></span></h1>
+      <p>Status kompaktor dan kenderaan depoh anda, berdasarkan laporan harian terkini. <span id="depoDate"></span></p>
+    </div>
+    <div id="depoAlert"></div>
+    <div id="depoKpi" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 bg-white rounded-lg shadow p-3">
+        <div class="font-semibold mb-2">Kenderaan depoh dalam pembaikan</div>
+        <div id="depoRows" class="overflow-x-auto"></div>
+        <div id="depoBreakdown" class="mt-3"></div>
+      </div>
+      <div class="bg-white rounded-lg shadow p-3">
+        <div class="font-semibold mb-2">Trend 60 hari</div>
+        <div class="h-64"><canvas id="chDepoTrend"></canvas></div>
+      </div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-3">
+      <div class="font-semibold mb-1">Pergerakan kenderaan</div>
+      <div class="text-sm text-slate-500 mb-3">Kenderaan masuk bengkel, siap dibaiki, breakdown dan pemindahan standby, 60 hari terkini.</div>
+      <div id="depoMoves"></div>
+    </div>
+  </section>
+</main>
+
+<!-- Tukar kata laluan -->
+<div class="modal-bg" id="pwModal">
+  <form class="login-card" id="pwForm" autocomplete="off">
+    <h1>Tukar Kata Laluan</h1>
+    <p class="text-sm text-slate-500 mt-1" id="pwReason">Kata laluan baru mesti sekurang-kurangnya 8 aksara.</p>
+    <label>Kata laluan semasa</label><input type="password" id="pwOld" autocomplete="current-password" required>
+    <label>Kata laluan baru</label><input type="password" id="pwNew" autocomplete="new-password" minlength="8" required>
+    <label>Sahkan kata laluan baru</label><input type="password" id="pwNew2" autocomplete="new-password" minlength="8" required>
+    <button class="btn-primary" type="submit">Simpan Kata Laluan</button>
+    <button type="button" id="pwCancel" class="w-full mt-2 text-sm text-slate-500 py-2">Batal</button>
+    <div class="login-err" id="pwErr"></div>
+  </form>
+</div>
+
+<!-- Pengguna baru / sunting -->
+<div class="modal-bg" id="userModal">
+  <form class="login-card" id="userForm" autocomplete="off">
+    <h1 id="userFormTitle">Pengguna Baru</h1>
+    <label>Nama pengguna (untuk log masuk)</label><input id="ufUsername" placeholder="cth: fixa.auto" required>
+    <label>Nama penuh / syarikat</label><input id="ufNama" required>
+    <label>Peranan</label>
+    <select id="ufPeranan" class="w-full border rounded px-3 py-2.5">
+      <option value="admin">Pentadbir — akses penuh</option>
+      <option value="panel">Panel bengkel — daftar &amp; kemaskini pembaikan</option>
+      <option value="depo">PIC depoh — lihat depoh sendiri</option>
+    </select>
+    <div id="ufSkopWrap"><label id="ufSkopLabel">Panel / depoh</label><select id="ufSkop" class="w-full border rounded px-3 py-2.5"></select></div>
+    <label class="flex items-center gap-2" style="margin-top:14px"><input type="checkbox" id="ufAktif" style="width:auto" checked> Akaun aktif</label>
+    <label class="flex items-center gap-2" id="ufResetWrap" style="margin-top:6px"><input type="checkbox" id="ufReset" style="width:auto"> Tetapkan semula kata laluan</label>
+    <button class="btn-primary" type="submit">Simpan</button>
+    <button type="button" id="ufCancel" class="w-full mt-2 text-sm text-slate-500 py-2">Batal</button>
+    <div class="login-err" id="ufErr"></div>
+  </form>
+</div>
+
+<datalist id="dlJenis"></datalist>
+<datalist id="dlDepo"></datalist>
+<datalist id="dlPanel"></datalist>
+
+<script src="seed.js"></script>
+<script src="app.js"></script>
+<script src="chat.js"></script>
+</body>
+</html>
